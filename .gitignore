@@ -1,0 +1,67 @@
+# --- macOS ---
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# --- Video (nunca al repo: pesan demasiado) ---
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.m4v
+*.mpg
+*.mpeg
+
+# --- Video RAW / camara ---
+*.braw
+*.r3d
+*.mxf
+
+# --- Proyectos de edicion ---
+*.prproj
+*.aep
+*.aepx
+*.drp
+*.fcpbundle
+*.psd
+*.psb
+*.ai
+*.indd
+
+# --- Foto RAW ---
+*.arw
+*.cr2
+*.cr3
+*.nef
+*.dng
+*.orf
+*.raf
+
+# --- Audio sin comprimir ---
+*.wav
+*.aiff
+*.aif
+*.flac
+
+# --- Instaladores y comprimidos ---
+*.zip
+*.dmg
+*.pkg
+*.rar
+*.7z
+
+# --- Cache de Adobe / Resolve ---
+Adobe Premiere Pro Auto-Save/
+Adobe Premiere Pro Audio Previews/
+Adobe Premiere Pro Video Previews/
+*.cfa
+*.pek
+CacheClip/
+
+# --- Dev ---
+node_modules/
+.env
+*.log
+__pycache__/
