@@ -22,12 +22,12 @@
   b{color:#f23ca6}
   #tactil{display:none}
   /* ---------- CELULAR: pantalla completa + controles táctiles ---------- */
-  body.tactil{position:fixed;inset:0;padding:0;gap:0;overflow:hidden;touch-action:none;
+  body.tactil{position:fixed;top:0;left:0;right:0;bottom:0;padding:0;gap:0;overflow:hidden;touch-action:none;overscroll-behavior:none;
     -webkit-touch-callout:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
   body.tactil .row, body.tactil small{display:none}
   body.tactil canvas{position:absolute;left:50%;transform:translateX(-50%);border:0;box-shadow:none;
     max-width:none;max-height:none}
-  body.tactil #tactil{display:block;position:absolute;inset:0;pointer-events:none}
+  body.tactil #tactil{display:block;position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none}
   #tactil .zona{position:absolute;pointer-events:auto;touch-action:none}
   #joy{left:0;bottom:0;width:46%;height:62%}
   #joyBase{position:absolute;width:128px;height:128px;margin:-64px 0 0 -64px;border-radius:50%;
@@ -39,12 +39,13 @@
     box-shadow:3px 3px 0 #000;display:flex;align-items:center;justify-content:center;
     font:bold 14px "Courier New",monospace;color:#111;opacity:.72;letter-spacing:1px;text-align:center;line-height:1}
   .bt.on{transform:translate(3px,3px);box-shadow:none;opacity:1}
-  #bX{background:#f23ca6;right:20px;bottom:30px;width:80px;height:80px;font-size:15px}
-  #bZ{background:#f0c020;right:112px;bottom:14px}
-  #bC{background:#6ad0ff;right:34px;bottom:124px}
-  #bV{background:#a0f070;right:124px;bottom:100px;display:none}
+  #bX{background:#f23ca6;right:calc(20px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom));width:80px;height:80px;font-size:15px}
+  #bZ{background:#f0c020;right:calc(112px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom))}
+  #bC{background:#6ad0ff;right:calc(34px + env(safe-area-inset-right));bottom:calc(124px + env(safe-area-inset-bottom))}
+  #bV{background:#a0f070;right:calc(124px + env(safe-area-inset-right));bottom:calc(100px + env(safe-area-inset-bottom));display:none}
   body.tactil:not(.pelea) #joy, body.tactil:not(.pelea) #botones{display:none}
-  #arriba{position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:8px;pointer-events:auto}
+  body.moto #bC, body.moto #bV{display:none!important}
+  #arriba{position:absolute;top:calc(8px + env(safe-area-inset-top));left:calc(8px + env(safe-area-inset-left));display:flex;flex-direction:column;gap:8px;pointer-events:auto}
   #arriba button{width:44px;height:40px;padding:0;font-size:16px;opacity:.8}
   #girar{display:none;position:absolute;left:0;right:0;text-align:center;color:#f23ca6;
     font:bold 14px "Courier New",monospace;letter-spacing:2px;pointer-events:none}
@@ -113,7 +114,7 @@ const params=new URLSearchParams(location.search);
 
 // ===================== IMÁGENES =======================================
 const IMG={};         // IMG[grupo][clave] = {img, blanca, w,h,ax,ay}
-function cargar(src){return new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=src;});}
+function cargar(src){return new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(i);i.src=src;});}
 function blanca(img){                       // silueta blanca para el destello del golpe
   const c=document.createElement('canvas'); c.width=img.width; c.height=img.height;
   const x=c.getContext('2d'); x.drawImage(img,0,0);
@@ -121,15 +122,19 @@ function blanca(img){                       // silueta blanca para el destello d
   return c;
 }
 async function cargarTodo(){
+  // todas las imágenes a la vez: en el celular cargar una por una tardaba
+  const tareas=[];
   for(const grupo in ARTE.sprites){
     IMG[grupo]={};
     for(const k in ARTE.sprites[grupo]){
-      const m=ARTE.sprites[grupo][k], im=await cargar(m.src);
-      IMG[grupo][k]={img:im, blanca:blanca(im), w:m.w, h:m.h, ax:m.ax, ay:m.ay};
+      const m=ARTE.sprites[grupo][k];
+      tareas.push(cargar(m.src).then(im=>{ IMG[grupo][k]={img:im, _b:null, w:m.w, h:m.h, ax:m.ax, ay:m.ay,
+        get blanca(){ return this._b||(this._b=blanca(this.img)); } }; }));
     }
   }
   IMG.fondo={};
-  for(const k in ARTE.fondos) IMG.fondo[k]=await cargar(ARTE.fondos[k]);
+  for(const k in ARTE.fondos) tareas.push(cargar(ARTE.fondos[k]).then(im=>{ IMG.fondo[k]=im; }));
+  await Promise.all(tareas);
 }
 function spr(grupo,clave,x,y,flip,destello,alfa){
   const s=IMG[grupo][clave]; if(!s) return;
@@ -220,10 +225,11 @@ function empezar(pj){
   const bC=document.getElementById('bC'); if(bC) bC.innerHTML=pj==='bajista'?'GRE<br>ÑUDO':'ESPE<br>CIAL';
 }
 function iniciarNivel(n, primero){
+  soltarTodo(); if(window.__soltarJoystick) __soltarJoystick();
   nivel=n; NIV=NIVELES[n]; puntosNivel=puntos;
   const j=jug; j.x=70; j.z=190; j.y=0; j.vy=0; j.vx=0; j.vz=0; j.mira=1; j.vida=j.vidaMax; j.invuln=0; j.dolor=0;
   j.esp=null; j.golpe=0; j.combo=0; j.muerto=false; j.furia=Math.max(j.furia,50);
-  enemigos=[]; balas=[]; chispas=[]; jefe=null; t=0; sacudida=0; rojo=0; blanco=0; finT=0;
+  enemigos=[]; balas=[]; chispas=[]; jefe=null; t=0; mensaje=''; mensajeHasta=0; rotulo=''; pausaGolpe=0; sacudida=0; rojo=0; blanco=0; finT=0;
   cam={x:0, lock:false}; oleada={i:0, estado:'camina'};
   if(NIV.tipo==='pelea'){
     LARGO=NIV.largo; OLEADAS=NIV.oleadas;
@@ -283,6 +289,9 @@ function pulsar(code){
   tec[e.code]=true;
 }
 function soltar(code){ tec[code]=false; }
+function soltarTodo(){ for(const k in tec) tec[k]=false; }
+addEventListener('blur',soltarTodo);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) soltarTodo(); else ultimo=0; });
 addEventListener('keyup',e=>soltar(e.code));
 
 // ===================== GOLPES =========================================
@@ -760,11 +769,13 @@ function pintarMoto(){
   for(const c of cosas) c.f();
 }
 function sombraP(sx,z,r){ ctx.fillStyle='rgba(4,2,8,.45)'; ctx.beginPath(); ctx.ellipse(Math.round(sx),Math.round(z),r,r*0.28,0,0,7); ctx.fill(); }
-function frameMoto(dt){
+function tickMoto(dt){
   if(pausaGolpe>0) pausaGolpe-=dt;
   else if(modo==='juego'){ actualizarMoto(dt); actualizarChispas(dt); }
   else { finT+=dt; actualizarChispas(dt); if(jefe&&jefe.muerta) jefe.expl+=dt; }
   cam.x=moto.dist-MX;
+}
+function dibujarMoto(){
   const cx0=cam.x; cam.x+=sacudida>0.2?(Math.random()-0.5)*sacudida:0;
   ctx.save(); if(sacudida>0.2) ctx.translate(0,Math.round((Math.random()-0.5)*sacudida*0.5));
   pintarMoto(); pintarEfectos(); ctx.restore();
@@ -775,8 +786,6 @@ function frameMoto(dt){
   if(t<mensajeHasta&&modo==='juego'){ const w=anchoTxt(mensaje,1); ctx.fillStyle='rgba(0,0,0,.7)'; ctx.fillRect((BW-w)/2-6,34,w+12,12); txtC(mensaje,37,'#f0c020',1); }
   if(modo==='fin') pintarFin();
   presentar();
-  sacudida*=Math.pow(0.003,dt); rojo*=Math.pow(0.03,dt); blanco*=Math.pow(0.02,dt);
-  requestAnimationFrame(frame);
 }
 
 // ===================== TARJETA DE CADA NIVEL ==========================
@@ -1137,14 +1146,28 @@ const musica={
 };
 
 // ===================== BUCLE ==========================================
-let ultimo=0;
+// La LÓGICA avanza en pasos fijos de 1/60 s y el DIBUJO va una vez por
+// cuadro de pantalla. Así el juego corre a la misma velocidad en una
+// pantalla de 60 Hz, en un iPhone/Android de 120 Hz o en un celular lento
+// que sólo da 30 cuadros (antes, a 120 Hz todo iba al doble de rápido).
+const PASO=1/60;
+let ultimo=0, acum=0;
 function frame(ms){
-  const dt=Math.min(0.05,(ms-(ultimo||ms))/1000); ultimo=ms; t+=dt;
+  const real=Math.min(0.1,Math.max(0,(ms-(ultimo||ms))/1000)); ultimo=ms;
   document.body.classList.toggle('pelea',modo==='juego');
-  if(modo==='titulo'){ pintarTitulo(dt); presentar(); requestAnimationFrame(frame); return; }
-  if(modo==='carta'){ cartaT+=dt; pintarCarta(); presentar(); if(cartaT>4) modo='juego'; requestAnimationFrame(frame); return; }
-  if(NIV.tipo==='moto'){ frameMoto(dt); return; }
-
+  document.body.classList.toggle('moto',!!(NIV&&NIV.tipo==='moto'));
+  acum+=real; let n=0;
+  while(acum>=PASO-1e-6 && n<6){ tick(PASO); acum-=PASO; n++; }
+  if(n>=6) acum=0;                                     // si el aparato se trabó, no recupera a lo loco
+  dibujar();
+  requestAnimationFrame(frame);
+}
+function decaer(dt){ sacudida*=Math.pow(0.003,dt); rojo*=Math.pow(0.03,dt); blanco*=Math.pow(0.02,dt); }
+function tick(dt){
+  t+=dt;
+  if(modo==='titulo') return;
+  if(modo==='carta'){ cartaT+=dt; if(cartaT>4) modo='juego'; return; }
+  if(NIV.tipo==='moto'){ tickMoto(dt); decaer(dt); return; }
   if(pausaGolpe>0){ pausaGolpe-=dt; }                      // el "hit-stop": un instante congelado al pegar
   else if(modo==='juego'){
     actualizarJugador(dt); actualizarEnemigos(dt); actualizarBalas(dt); actualizarChispas(dt);
@@ -1156,13 +1179,18 @@ function frame(ms){
       oleada.i++; oleada.estado='camina'; cam.lock=false; avisar('¡SIGUE! >',1.6);
     }
   } else { finT+=dt; actualizarChispas(dt); actualizarEnemigos(dt); }
-
   if(!cam.lock){ const obj=clamp(jug.x-BW*0.4,0,LARGO-BW); cam.x+=(obj-cam.x)*Math.min(1,dt*5); }
   cam.x=clamp(cam.x,0,LARGO-BW);
+  if(REEL){ const obj=clamp(jug.x-RW*(jug.mira>0?0.24:0.76),0,LARGO-RW); camV+=(obj-camV)*Math.min(1,dt*3.2); camV=clamp(camV,0,LARGO-RW); }
+  decaer(dt);
+}
+function dibujar(){
+  if(modo==='titulo'){ pintarTitulo(); presentar(); return; }
+  if(modo==='carta'){ pintarCarta(); presentar(); return; }
+  if(NIV.tipo==='moto'){ dibujarMoto(); return; }
   const cx0=cam.x;
-  if(REEL){ const obj=clamp(jug.x-RW*(jug.mira>0?0.24:0.76),0,LARGO-RW); camV+=(obj-camV)*Math.min(1,dt*3.2); camV=clamp(camV,0,LARGO-RW); cam.x=camV; }
+  if(REEL) cam.x=camV;
   cam.x+= sacudida>0.2?(Math.random()-0.5)*sacudida:0;
-
   pintarFondo();
   const lista=enemigos.slice(); lista.push(jug); lista.sort((a,b)=>a.z-b.z);
   for(const o of lista){ if(o===jug) pintarJugador(); else pintarEnemigo(o); }
@@ -1170,14 +1198,12 @@ function frame(ms){
   cam.x=cx0;
   if(rojo>0.01){ ctx.fillStyle=`rgba(200,20,50,${rojo*0.4})`; ctx.fillRect(0,27,BW,BH); }
   if(blanco>0.01){ ctx.fillStyle=`rgba(255,240,250,${blanco*0.5})`; ctx.fillRect(0,27,BW,BH); }
-  if(REEL){ componerReel(); presentar(); sacudida*=Math.pow(0.003,dt); rojo*=Math.pow(0.03,dt); blanco*=Math.pow(0.02,dt); requestAnimationFrame(frame); return; }
+  if(REEL){ componerReel(); presentar(); return; }
   pintarHUD();
   if(t<mensajeHasta&&modo==='juego'){ const w=anchoTxt(mensaje,1); ctx.fillStyle='rgba(0,0,0,.7)'; ctx.fillRect((BW-w)/2-6,34,w+12,12); txtC(mensaje,37,'#f0c020',1); }
   if(oleada.estado==='camina'&&modo==='juego'&&((t*2)|0)%2&&t>3){ txt('>',BW-20,90,'#f23ca6',2); txt('SIGUE',BW-44,110,'#f23ca6',1); }
   if(modo==='fin') pintarFin();
   presentar();
-  sacudida*=Math.pow(0.003,dt); rojo*=Math.pow(0.03,dt); blanco*=Math.pow(0.02,dt);
-  requestAnimationFrame(frame);
 }
 function presentar(){ mctx.imageSmoothingEnabled=false; mctx.drawImage(REEL?RV:off,0,0,cv.width,cv.height); }
 function componerReel(){
@@ -1229,10 +1255,19 @@ document.getElementById('rec').onclick=()=>{
 // Joystick que aparece donde apoyas el pulgar izquierdo + botones a la
 // derecha. Escriben en el mismo mapa de teclas que el teclado, así que el
 // juego no se entera de si lo controlas con dedos o con teclas.
-let TACTIL=false;
+let TACTIL=false, selTocada=-1;
 function activarTactil(){
   if(TACTIL) return; TACTIL=true; document.body.classList.add('tactil'); ajustar();
 }
+let _pc=false;
+function pantallaCompleta(){
+  if(_pc||!TACTIL) return; _pc=true;
+  const el=document.documentElement, rq=el.requestFullscreen||el.webkitRequestFullscreen;
+  try{ const p=rq&&rq.call(el,{navigationUI:'hide'});
+    if(p&&p.then) p.then(()=>{ try{ screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape').catch(()=>{}); }catch(_){} }).catch(()=>{});
+  }catch(_){}
+}
+addEventListener('touchend',pantallaCompleta,{passive:true});
 function ajustar(){
   if(!TACTIL) return;
   const W=innerWidth, H=innerHeight;
@@ -1243,7 +1278,7 @@ function ajustar(){
 }
 if(matchMedia('(pointer:coarse)').matches||'ontouchstart' in window) activarTactil();
 addEventListener('touchstart',activarTactil,{passive:true});
-addEventListener('resize',ajustar); addEventListener('orientationchange',()=>setTimeout(ajustar,250));
+addEventListener('resize',ajustar); if(window.visualViewport) visualViewport.addEventListener('resize',ajustar); addEventListener('orientationchange',()=>setTimeout(ajustar,250));
 
 (function(){
   const zona=document.getElementById('joy'), base=document.getElementById('joyBase'), pal=document.getElementById('joyPal');
@@ -1264,8 +1299,9 @@ addEventListener('resize',ajustar); addEventListener('orientationchange',()=>set
     const r=zona.getBoundingClientRect(); let dx=e.clientX-r.left-ox, dy=e.clientY-r.top-oy;
     const m=Math.hypot(dx,dy), lim=46; if(m>lim){ dx*=lim/m; dy*=lim/m; }
     pal.style.left=(ox+dx)+'px'; pal.style.top=(oy+dy)+'px'; dirs(dx,dy); });
-  const fin=e=>{ if(e.pointerId!==id) return; id=null; base.style.display=pal.style.display='none'; dirs(0,0); };
-  zona.addEventListener('pointerup',fin); zona.addEventListener('pointercancel',fin);
+  const fin=e=>{ if(e&&e.pointerId!==id) return; id=null; base.style.display=pal.style.display='none'; dirs(0,0); };
+  zona.addEventListener('pointerup',fin); zona.addEventListener('pointercancel',fin); zona.addEventListener('lostpointercapture',fin);
+  window.__soltarJoystick=()=>{ if(id!==null){ try{zona.releasePointerCapture(id);}catch(_){} } id=null; base.style.display=pal.style.display='none'; };
 
   // botones: cada dedo es suyo, se pueden apretar varios a la vez (salto + golpe)
   for(const b of document.querySelectorAll('.bt')){
@@ -1275,7 +1311,7 @@ addEventListener('resize',ajustar); addEventListener('orientationchange',()=>set
     const up=()=>{ b.classList.remove('on'); soltar(k); };
     b.addEventListener('pointerup',up); b.addEventListener('pointercancel',up); b.addEventListener('lostpointercapture',up);
   }
-  document.getElementById('tSalir').onclick=()=>{ modo='titulo'; musica.tema(2); };
+  document.getElementById('tSalir').onclick=()=>{ soltarTodo(); __soltarJoystick(); modo='titulo'; selTocada=-1; musica.tema(2); };
 
   // tocar la pantalla: escoger personaje / volver tras el final
   cv.addEventListener('pointerdown',e=>{
@@ -1283,7 +1319,7 @@ addEventListener('resize',ajustar); addEventListener('orientationchange',()=>set
     const r=cv.getBoundingClientRect(), x=(e.clientX-r.left)/r.width*BW, y=(e.clientY-r.top)/r.height*BH;
     if(modo==='titulo'&&y>60){
       const i=x<140?0:x<260?1:2;
-      if(i===sel){ sfx('elegir'); empezar(ORDEN[sel]); } else { sel=i; sfx('cursor'); }
+      if(i===sel&&selTocada===i){ sfx('elegir'); selTocada=-1; empezar(ORDEN[sel]); } else { sel=i; selTocada=i; sfx('cursor'); }
     } else if(modo==='fin'&&finT>2){ salirDelFin(); }
     else if(modo==='carta'&&cartaT>0.6){ modo='juego'; }
   });
@@ -1295,6 +1331,11 @@ addEventListener('resize',ajustar); addEventListener('orientationchange',()=>set
   document.addEventListener('contextmenu',e=>{ if(TACTIL) e.preventDefault(); });
 })();
 
+(function(){                                     // "CARGANDO" mientras llegan las imágenes
+  ctx.fillStyle='#0c0912'; ctx.fillRect(0,0,BW,BH);
+  ctx.fillStyle='#f23ca6'; ctx.font='bold 12px monospace'; ctx.textAlign='center'; ctx.fillText('CARGANDO...',BW/2,BH/2);
+  ctx.textAlign='left'; presentar();
+})();
 cargarTodo().then(()=>{
   const pj=params.get('pj');
   if(pj&&PJ[pj]) empezar(pj);
