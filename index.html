@@ -55,6 +55,25 @@
     #arriba{top:auto;bottom:10px;flex-direction:row}
   }
 </style>
+<script>
+// ===================== VISITAS (Google Analytics) =====================
+// Cuenta cuántas personas entran y cuánto tiempo juegan, más hitos del juego.
+// Se APAGA solo en: el archivo abierto desde la Mac (file://), el modo reel y
+// cuando la URL trae atajos de prueba (?pj= ?nivel= ?jefe= ?oleada=), para que
+// las pruebas no se cuenten como visitas.
+const GA_ID='';                                   // ← aquí va el ID de la cuenta: G-XXXXXXXXXX
+(function(){
+  const q=new URLSearchParams(location.search);
+  const prueba=location.protocol==='file:'||['pj','nivel','jefe','oleada','reel'].some(k=>q.has(k));
+  if(!GA_ID||prueba) return;
+  window.dataLayer=window.dataLayer||[];
+  window.gtag=function(){ dataLayer.push(arguments); };
+  gtag('js',new Date()); gtag('config',GA_ID);
+  const s=document.createElement('script'); s.async=true; s.src='https://www.googletagmanager.com/gtag/js?id='+GA_ID;
+  document.head.appendChild(s);
+})();
+function medir(evento,datos){ try{ if(window.gtag) gtag('event',evento,datos||{}); }catch(_){} }
+</script>
 </head>
 <body>
 <canvas id="c" width="1600" height="900"></canvas>
@@ -219,6 +238,7 @@ function nuevoJefe(tipo,x,z){
 }
 
 function empezar(pj){
+  medir('partida',{personaje:pj});
   jug=nuevoJugador(pj); puntos=0;
   iniciarNivel(clamp(parseInt(params.get('nivel')||'1',10)||1,1,3), true);
   const bV=document.getElementById('bV'); if(bV) bV.style.display=pj==='bajista'?'flex':'none';
@@ -241,6 +261,7 @@ function iniciarNivel(n, primero){
   modo='carta'; cartaT=0;
   if(REEL) modo='juego';
   musica.tema(NIV.tema);
+  medir('nivel_empieza',{nivel:n});
 }
 function siguienteNivel(){
   if(nivel<3) iniciarNivel(nivel+1,false); else { modo='titulo'; musica.tema(2); }
@@ -339,7 +360,7 @@ function danarJugador(d,desde){
   j.vx=(desde>j.x?-1:1)*2.4;
   if(j.vida<=0){
     j.vidas--;
-    if(j.vidas<=0){ j.vida=0; j.muerto=true; j.muertoT=0; sfx('morir'); modo='fin'; finT=0; }
+    if(j.vidas<=0){ medir('perdio',{nivel:nivel}); j.vida=0; j.muerto=true; j.muertoT=0; sfx('morir'); modo='fin'; finT=0; }
     else { j.vida=j.vidaMax; j.invuln=2.4; avisar('QUEDAN '+j.vidas+' VIDAS',1.8); }
   }
 }
@@ -569,7 +590,7 @@ function actualizarBalas(dt){
   }
 }
 function ganar(){ terminarNivel(); sacudida=10; blanco=0.8; }
-function terminarNivel(){ modo='fin'; finT=0; balas=[]; puntos+=nivel===3?3000:5000; sfx('victoria'); musica.tema(2); }
+function terminarNivel(){ medir(nivel===3?'juego_terminado':'nivel_superado',{nivel:nivel}); modo='fin'; finT=0; balas=[]; puntos+=nivel===3?3000:5000; sfx('victoria'); musica.tema(2); }
 function salirDelFin(){
   if(jug.muerto){                                  // reintenta el mismo nivel, con 3 vidas
     jug.vidas=3; jug.muerto=false; puntos=puntosNivel; iniciarNivel(nivel,false); return; }
